@@ -1,0 +1,29 @@
+# Project dependencies
+
+# Streamlit for UI
+streamlit>=1.28.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# LangChain and related packages
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.20
+
+# LangGraph for orchestration
+langgraph>=0.0.25
+
+# OpenAI
+openai>=1.0.0
+
+# CrewAI for billing agents
+crewai>=0.1.0
+crewai-tools>=0.1.0
+
+# Database (SQLite is built-in with Python)
+
+# AI Frameworks (to be implemented)
+# pyautogen>=0.2.0
+# llama-index>=0.9.0
