@@ -1,4 +1,4 @@
-# Streamlit UI code
+# Streamlit UI code (Corporate Clean Version)
 import streamlit as st
 import sys
 from pathlib import Path
@@ -7,296 +7,297 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from utils.database import authenticate_customer
+from utils.document_manager import (
+    get_existing_documents,
+    save_uploaded_file,
+    process_and_index_documents,
+    delete_document,
+    get_knowledge_base_stats
+)
 
-# Import LangGraph only when authenticated (lazy loading)
+# Lazy-load LangGraph
 def get_graph():
-    """Lazy load the graph to avoid import errors on startup"""
     try:
         from orchestration.graph import create_graph
         return create_graph()
     except Exception as e:
-        st.error(f"Error loading LangGraph: {e}")
+        st.error(f"Error loading AI engine: {e}")
         return None
 
-# Set page configuration
+# -------------------------------------------------------
+# Page Configuration
+# -------------------------------------------------------
 st.set_page_config(
     page_title="Telecom Service Assistant",
-    page_icon="📱",
     layout="wide"
 )
 
-# Initialize session state variables
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "user_type" not in st.session_state:
-    st.session_state.user_type = None
-if "customer_id" not in st.session_state:
-    st.session_state.customer_id = None
-if "name" not in st.session_state:
-    st.session_state.name = None
-if "email" not in st.session_state:
-    st.session_state.email = None
-if "phone" not in st.session_state:
-    st.session_state.phone = None
-if "plan_id" not in st.session_state:
-    st.session_state.plan_id = None
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "graph" not in st.session_state:
-    st.session_state.graph = None  # Will be initialized when needed
+# -------------------------------------------------------
+# Session State Initialization
+# -------------------------------------------------------
+defaults = {
+    "authenticated": False,
+    "user_type": None,
+    "customer_id": None,
+    "name": None,
+    "email": None,
+    "phone": None,
+    "plan_id": None,
+    "chat_history": [],
+    "graph": None
+}
 
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-# Sidebar for authentication
+# -------------------------------------------------------
+# Sidebar Authentication
+# -------------------------------------------------------
 with st.sidebar:
-    st.title("📱 Telecom Service Assistant")
+    st.title("Telecom Service Assistant")
     st.markdown("---")
-    
+
     if not st.session_state.authenticated:
-        st.subheader("🔐 Login")
-        st.markdown("Enter your Customer ID or 'admin' for admin access")
-        
-        customer_id = st.text_input(
-            "Customer ID", 
-            placeholder="e.g., CUST001 or admin",
-            help="Enter your customer ID or type 'admin' for administrator access"
-        )
-        
-        if st.button("🔑 Login", use_container_width=True):
+        st.subheader("Login")
+        customer_id = st.text_input("Customer ID")
+
+        if st.button("Login"):
             if customer_id.strip():
-                # Authenticate the user
-                user_info = authenticate_customer(customer_id.strip())
-                
-                if user_info:
-                    # Store user information in session state
+                user_data = authenticate_customer(customer_id.strip())
+
+                if user_data:
+                    for key in ["user_type", "customer_id", "name", "email", "phone", "plan_id"]:
+                        st.session_state[key] = user_data.get(key)
+
                     st.session_state.authenticated = True
-                    st.session_state.user_type = user_info['user_type']
-                    st.session_state.customer_id = user_info['customer_id']
-                    st.session_state.name = user_info['name']
-                    st.session_state.email = user_info['email']
-                    st.session_state.phone = user_info['phone']
-                    st.session_state.plan_id = user_info['plan_id']
-                    
-                    st.success(f"✅ Welcome, {user_info['name']}!")
                     st.rerun()
                 else:
-                    st.error("❌ Invalid Customer ID. Please try again.")
+                    st.error("Invalid Customer ID.")
             else:
-                st.warning("⚠️ Please enter a Customer ID")
-        
-        # Help section
+                st.warning("Please enter a Customer ID.")
+
         st.markdown("---")
-        st.info("💡 **Need Help?**\n\nIf you don't know your Customer ID, please contact support at support@telecom.com")
-    
+        st.info("If you do not know your Customer ID, please contact customer support.")
+
     else:
-        # Display user information
         if st.session_state.user_type == "admin":
-            st.success("👑 Admin Dashboard")
+            st.success("Admin Access")
         else:
-            st.success("👤 Customer Portal")
-        
+            st.success("Customer Access")
+
         st.markdown("---")
-        st.markdown("**User Information:**")
         st.text(f"Name: {st.session_state.name}")
-        st.text(f"ID: {st.session_state.customer_id}")
-        
+        st.text(f"Customer ID: {st.session_state.customer_id}")
+
         if st.session_state.user_type == "customer":
             st.text(f"Email: {st.session_state.email}")
             st.text(f"Phone: {st.session_state.phone}")
             st.text(f"Plan: {st.session_state.plan_id}")
-        
+
         st.markdown("---")
-        
-        if st.button("🚪 Logout", use_container_width=True):
-            # Clear all session state
-            st.session_state.authenticated = False
-            st.session_state.user_type = None
-            st.session_state.customer_id = None
-            st.session_state.name = None
-            st.session_state.email = None
-            st.session_state.phone = None
-            st.session_state.plan_id = None
-            st.session_state.chat_history = []
-            st.success("👋 Logged out successfully!")
+
+        if st.button("Logout"):
+            for key in defaults:
+                st.session_state[key] = defaults[key]
             st.rerun()
 
-
-# Main app content
+# -------------------------------------------------------
+# MAIN CONTENT
+# -------------------------------------------------------
 if st.session_state.authenticated:
+
+    # ---------------------------------------------------
+    # CUSTOMER PORTAL
+    # ---------------------------------------------------
     if st.session_state.user_type == "customer":
-        # Customer Dashboard
-        st.title(f"Welcome, {st.session_state.name}! 👋")
+        st.title(f"Welcome, {st.session_state.name}")
         st.markdown("---")
-        
-        # Create tabs for different features
-        tab1, tab2, tab3 = st.tabs(["💬 Chat Assistant", "📊 My Account", "📡 Network Status"])
-        
-        with tab1:
-            st.header("AI-Powered Chat Assistant")
-            st.markdown("Ask me anything about billing, network issues, plans, or technical support!")
-            
-            # Initialize graph if not already done
+
+        tab_chat, tab_account, tab_network = st.tabs([
+            "Chat Assistant",
+            "My Account",
+            "Network Status"
+        ])
+
+        # ---------------------------------------------------
+        # CHAT ASSISTANT (Corporate ChatGPT Style)
+        # ---------------------------------------------------
+        with tab_chat:
+            st.subheader("AI Chat Assistant")
+            st.write("You may ask questions regarding billing, plans, network issues, and general support.")
+
+            # Initialize LangGraph
             if st.session_state.graph is None:
-                with st.spinner("🔧 Initializing AI Assistant..."):
+                with st.spinner("Initializing AI Assistant..."):
                     st.session_state.graph = get_graph()
-                    if st.session_state.graph:
-                        st.success("✅ AI Assistant ready!")
-                    else:
-                        st.error("❌ Failed to initialize AI Assistant. Please check your configuration.")
-            
-            # Display chat history
-            for message in st.session_state.chat_history:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
-            
-            # Chat input
-            if prompt := st.chat_input("How can I help you today?"):
-                # Add user message to chat history
+
+            # Display Previous Messages
+            for msg in st.session_state.chat_history:
+                with st.chat_message(msg["role"]):
+                    st.write(msg["content"])
+
+            # Chat Input
+            prompt = st.chat_input("Enter your message")
+            if prompt:
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
-                
-                # Display user message
+
                 with st.chat_message("user"):
-                    st.markdown(prompt)
-                
-                # Process query through LangGraph
+                    st.write(prompt)
+
                 with st.chat_message("assistant"):
                     if st.session_state.graph is None:
-                        st.error("AI Assistant not initialized. Please refresh the page.")
+                        st.error("AI Assistant failed to initialize.")
                     else:
-                        with st.spinner("🤔 Thinking..."):
+                        with st.spinner("Processing..."):
+                            state = {
+                                "query": prompt,
+                                "customer_info": {
+                                    "customer_id": st.session_state.customer_id,
+                                    "name": st.session_state.name,
+                                    "email": st.session_state.email,
+                                    "phone": st.session_state.phone,
+                                    "plan_id": st.session_state.plan_id
+                                },
+                                "classification": "",
+                                "intermediate_responses": {},
+                                "final_response": "",
+                                "chat_history": st.session_state.chat_history,
+                                "error": None
+                            }
+
                             try:
-                                # Create state for the graph
-                                initial_state = {
-                                    "query": prompt,
-                                    "customer_info": {
-                                        "customer_id": st.session_state.customer_id,
-                                        "name": st.session_state.name,
-                                        "email": st.session_state.email,
-                                        "phone": st.session_state.phone,
-                                        "plan_id": st.session_state.plan_id
-                                    },
-                                    "classification": "",
-                                    "intermediate_responses": {},
-                                    "final_response": "",
-                                    "chat_history": st.session_state.chat_history,
-                                    "error": None
-                                }
-                                
-                                # Run the graph
-                                result = st.session_state.graph.invoke(initial_state)
-                                response = result.get("final_response", "I apologize, but I couldn't process your request.")
-                                
-                                # Display response
-                                st.markdown(response)
-                                
-                                # Add assistant response to chat history
-                                st.session_state.chat_history.append({
-                                    "role": "assistant",
-                                    "content": response
-                                })
-                                
+                                result = st.session_state.graph.invoke(state)
+                                response = result.get("final_response", "Unable to process your request.")
+                                st.write(response)
+
+                                st.session_state.chat_history.append({"role": "assistant", "content": response})
+
                             except Exception as e:
-                                error_msg = f"❌ Error processing your request: {str(e)}"
-                                st.error(error_msg)
-                                st.session_state.chat_history.append({
-                                    "role": "assistant",
-                                    "content": error_msg
-                                })
-            
-            # Clear chat button
-            if st.button("🗑️ Clear Chat History"):
+                                err_message = f"Error processing your request: {e}"
+                                st.error(err_message)
+                                st.session_state.chat_history.append({"role": "assistant", "content": err_message})
+
+            if st.button("Clear Chat History"):
                 st.session_state.chat_history = []
                 st.rerun()
-        
-        with tab2:
-            st.header("My Account Information")
-            st.info("🚧 Account dashboard coming soon...")
-            st.markdown("""
-            **Available features will include:**
-            - � Usage Statistics
-            - 💰 Billing History
-            - 📱 Plan Details
-            - � Account Settings
-            """)
-        
-        with tab3:
-            st.header("Network Status")
-            st.info("� Network status monitoring coming soon...")
-            st.markdown("""
-            **Available features will include:**
-            - � Real-time Network Status
-            - 🗺️ Coverage Maps
-            - ⚠️ Known Issues
-            - 🔔 Service Alerts
-            """)
-        
+
+        # ---------------------------------------------------
+        # ACCOUNT TAB
+        # ---------------------------------------------------
+        with tab_account:
+            st.subheader("My Account")
+            st.write("Account dashboard features will be available soon.")
+
+        # ---------------------------------------------------
+        # NETWORK STATUS TAB
+        # ---------------------------------------------------
+        with tab_network:
+            st.subheader("Network Status")
+            st.write("Network monitoring features will be available soon.")
+
+    # ---------------------------------------------------
+    # ADMIN PORTAL
+    # ---------------------------------------------------
     elif st.session_state.user_type == "admin":
-        # Admin Dashboard
-        st.title("Administrator Dashboard 👑")
+        st.title("Administrator Dashboard")
         st.markdown("---")
-        
-        # Placeholder for admin features
-        st.info("🚧 Admin Dashboard features coming soon...")
-        st.markdown("""
-        **Available features will include:**
-        - 📚 Knowledge Base Management
-        - 🎫 Customer Support
-        - 📡 Network Monitoring
-        - 📊 Analytics & Reports
-        - 👥 User Management
-        """)
 
+        tab_kb, tab_support, tab_network, tab_reports = st.tabs([
+            "Knowledge Base Management",
+            "Customer Support",
+            "Network Monitoring",
+            "Analytics & Reports"
+        ])
+
+        # ---------------------------------------------------
+        # KNOWLEDGE BASE MANAGEMENT
+        # ---------------------------------------------------
+        with tab_kb:
+            st.subheader("Knowledge Base Management")
+
+            # Stats
+            stats = get_knowledge_base_stats()
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total Documents", stats["total_documents"])
+            c2.metric("Total Size (MB)", stats["total_size_mb"])
+            c3.metric("Indexed Chunks", stats["total_chunks"])
+            c4.metric("Last Indexed", stats["last_indexed"])
+
+            st.markdown("---")
+
+            # Upload Section
+            st.subheader("Upload Documents")
+            uploaded_files = st.file_uploader(
+                "Upload files (PDF, MD, TXT)",
+                type=["pdf", "md", "txt"],
+                accept_multiple_files=True
+            )
+
+            if uploaded_files:
+                if st.button("Upload"):
+                    for file in uploaded_files:
+                        save_uploaded_file(file)
+                    st.success("Files uploaded successfully.")
+                    st.rerun()
+
+            st.markdown("---")
+
+            # Process/Index
+            st.subheader("Process and Index Documents")
+            if st.button("Process Documents"):
+                progress = st.progress(0)
+                status = st.empty()
+
+                def update(p, message):
+                    progress.progress(p)
+                    status.text(message)
+
+                success, message, _ = process_and_index_documents(update)
+                if success:
+                    st.success(message)
+                    st.rerun()
+                else:
+                    st.error(message)
+
+            st.markdown("---")
+
+            # Existing Documents
+            st.subheader("Existing Documents")
+            docs = get_existing_documents()
+
+            if not docs:
+                st.info("No documents found.")
+            else:
+                for i, doc in enumerate(docs):
+                    with st.expander(f"{doc['name']}"):
+                        st.text(f"Type: {doc['type']}")
+                        st.text(f"Size: {doc['size']} bytes")
+                        st.text(f"Uploaded: {doc['upload_date']}")
+
+                        if st.button("Delete", key=f"del_{i}"):
+                            delete_document(doc["name"])
+                            st.success("Document deleted.")
+                            st.rerun()
+
+        # ---------------------------------------------------
+        # OTHER TABS
+        # ---------------------------------------------------
+        with tab_support:
+            st.subheader("Customer Support")
+            st.write("Support dashboard features will be available soon.")
+
+        with tab_network:
+            st.subheader("Network Monitoring")
+            st.write("Network monitoring features will be available soon.")
+
+        with tab_reports:
+            st.subheader("Analytics & Reports")
+            st.write("Analytical dashboards will be available soon.")
+
+# -------------------------------------------------------
+# LANDING PAGE (IF NOT LOGGED IN)
+# -------------------------------------------------------
 else:
-    # Landing page for non-authenticated users
-    st.title("Welcome to Telecom Service Assistant 📱")
-    st.markdown("---")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("### 💬 AI-Powered Support")
-        st.write("Get instant help with billing, network issues, and service recommendations")
-    
-    with col2:
-        st.markdown("### 📊 Account Management")
-        st.write("View your usage, bills, and manage your telecom services")
-    
-    with col3:
-        st.markdown("### 📡 Network Status")
-        st.write("Check real-time network status and coverage in your area")
-    
-    st.markdown("---")
-    st.info("👈 Please login using the sidebar to access all features")
-    
-    # Feature highlights
-    st.markdown("### ✨ Key Features")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        **For Customers:**
-        - 24/7 AI-powered customer support
-        - Real-time billing and usage tracking
-        - Network troubleshooting assistance
-        - Personalized plan recommendations
-        - Technical documentation access
-        """)
-    
-    with col2:
-        st.markdown("""
-        **For Administrators:**
-        - Knowledge base management
-        - Customer support ticket tracking
-        - Network incident monitoring
-        - Analytics and reporting
-        - System configuration
-        """)
-
-
-# Function to run the app
-def main():
-    pass  # All logic is above
-
-
-if __name__ == "__main__":
-    main()
+    st.title("Telecom Service Assistant")
+    st.write("Please login using the sidebar to continue.")

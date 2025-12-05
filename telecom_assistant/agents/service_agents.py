@@ -220,11 +220,6 @@ IMPORTANT RULES:
         return f"""
 📡 **Service Recommendation**
 
-**Your Query:**  
-{query}
-
----
-
 {result}
 
 ---

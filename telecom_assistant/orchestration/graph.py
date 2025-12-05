@@ -39,7 +39,7 @@ Classify the user query into exactly ONE of the following categories:
 1. billing_account - Questions about bills, charges, payments, invoices
 2. network_troubleshooting - Issues with signal, connectivity, speed, coverage
 3. service_recommendation - Requests for plan suggestions, upgrades, data options
-4. knowledge_retrieval - Technical questions about settings, features, devices
+4. knowledge_retrieval - Technical questions about settings, features, devices, 5G network coverage areas
 5. off_topic - Jokes, greetings, farewells, weather, sports, or any non-telecom query
 
 Examples:
@@ -165,12 +165,8 @@ def crew_ai_node(state: TelecomAssistantState) -> TelecomAssistantState:
 # ============================================================================
 def autogen_node(state: TelecomAssistantState) -> TelecomAssistantState:
     """
-    Handle network troubleshooting using AutoGen multi-agent system.
-    Uses:
-    - UserProxyAgent (customer representation)
-    - NetworkDiagnosticsAgent
-    - DeviceExpertAgent
-    - SolutionIntegratorAgent
+    Executes the AutoGen multi-agent network troubleshooting workflow.
+    Returns the final customer-facing report from the solution_integrator agent.
     """
 
     query = state["query"]
@@ -179,40 +175,59 @@ def autogen_node(state: TelecomAssistantState) -> TelecomAssistantState:
     print("📡 AutoGen Node: Processing network troubleshooting query")
 
     try:
-        # Import AutoGen network troubleshooting engine
+        # Import AutoGen troubleshooting engine
         from agents.network_agents import process_network_query
 
-        # Run the AutoGen multi-agent session
-        response = process_network_query(query)
+        # Run AutoGen multi-agent system with customer context
+        final_report = process_network_query(query, customer_info)
 
-        print("✅ AutoGen network troubleshooting complete")
+        # Validate response
+        if not isinstance(final_report, str) or len(final_report.strip()) < 20:
+            raise ValueError("Invalid or empty AutoGen response")
+
+        print("✅ AutoGen network troubleshooting completed successfully")
 
         return {
             **state,
-            "intermediate_responses": {"autogen": response},
+            "intermediate_responses": {"autogen": final_report},
             "error": None,
         }
 
     except Exception as e:
         print(f"❌ Error in AutoGen node: {e}")
 
+        # Provide helpful fallback response
         fallback = f"""
-We encountered an issue while analyzing your network problem: **{query}**
+NETWORK TROUBLESHOOTING ANALYSIS
 
-Here are some general troubleshooting steps you can try immediately:
+REPORTED ISSUE:
+{query}
 
-1. Toggle Airplane Mode ON and OFF  
-2. Restart your device  
-3. Check whether mobile data is enabled  
-4. Try removing and reinserting your SIM card  
-5. Reset APN settings to default  
-6. Check if other users nearby also have issues (possible outage)
+SITUATION:
+We encountered a technical issue while analyzing your network problem, but we can still provide general troubleshooting guidance.
 
-If the issue continues, please contact our network support team at **198**.
+IMMEDIATE ACTIONS:
+1. Toggle Airplane Mode ON, wait 10 seconds, then toggle it OFF
+2. Restart your device completely
+3. Verify that mobile data is enabled in your device settings
+4. Remove and reinsert your SIM card carefully
+5. Reset network settings if the issue continues (Settings > Network > Reset)
+6. If none of these steps work, call our support team at 198
 
----
+ADDITIONAL GUIDANCE:
+- Check if you're in an area with good network coverage
+- Move to a different location and test the connection
+- Ensure your device software is up to date
+- Try using WiFi calling if available on your plan
 
-**System Error:** {str(e)}
+EXPECTED OUTCOME:
+If the issue is device-related, these steps should resolve it within 15-30 minutes. For persistent problems, our technical team at 198 can provide advanced diagnostics.
+
+SUPPORT CONTACT:
+- Customer Service: 198 (available 24/7)
+- Reference your Customer ID: {customer_info.get('customer_id', 'N/A')} when calling
+
+Technical Note: {str(e)}
 """
 
         return {
