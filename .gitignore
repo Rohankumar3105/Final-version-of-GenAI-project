@@ -1,0 +1,48 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+env/
+venv/
+ENV/
+.venv/
+env.bak/
+env.old/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+
+# Streamlit artifacts
+.streamlit/
+
+# ChromaDB vector store
+data/chromadb/
+
+# Uploaded documents (optional, if you don't want to track them)
+data/documents/
+
+# Database files (optional, if you don't want to track them)
+*.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+*.old
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Test and backup files
+*.backup
+*.orig
+*~
